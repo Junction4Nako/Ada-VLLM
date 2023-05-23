@@ -1,0 +1,13 @@
+corpus: cc_coco_vg_cc12m
+format: json
+corpus_file: 
+  cc: /remote-home/zjli/CVLM/pretrain_datasets/json_pretrain/cc3m_train.json
+  coco: /remote-home/zjli/CVLM/pretrain_datasets/json_pretrain/coco.json
+  vg: /remote-home/zjli/CVLM/pretrain_datasets/json_pretrain/vg.json
+  cc12m: /remote-home/zjli/CVLM/pretrain_datasets/json_pretrain/cc12m_full.json
+image_path:
+  cc: /remote-home/share/dbclouddownload/ConceptualCaption/images
+  vg: /remote-home/zjli/CVLM/pretrain_datasets/vg/VG_100K/
+  coco: /remote-home/share/VQA/Images/
+  cc12m: /remote-home/share/dbclouddownload/cc12m/
+image_res: 256

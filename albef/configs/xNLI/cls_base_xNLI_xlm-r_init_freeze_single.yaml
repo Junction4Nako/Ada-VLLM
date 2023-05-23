@@ -1,0 +1,36 @@
+
+train_file:  '/remote-home/zjli/CVLM/datasets/xNLI/multinli_1.0_train.jsonl' #'/remote-home/zjli/CVLM/datasets/GQA/questions/train_all_questions/train_all_questions_*.json'
+val_file: '/remote-home/zjli/CVLM/datasets/xNLI/xnli.dev.jsonl'            
+test_file: '/remote-home/zjli/CVLM/datasets/xNLI/xnli.test.jsonl'
+translate_test_file:
+  en: '/remote-home/zjli/CVLM/datasets/iglue/datasets/xNLI/annotations/en/test.jsonl'
+  ar: '/remote-home/zjli/CVLM/datasets/iglue/datasets/xNLI/annotations_machine-translate/ar/test.jsonl'
+  es: '/remote-home/zjli/CVLM/datasets/iglue/datasets/xNLI/annotations_machine-translate/es/test.jsonl'
+  fr: '/remote-home/zjli/CVLM/datasets/iglue/datasets/xNLI/annotations_machine-translate/fr/test.jsonl'
+  ru: '/remote-home/zjli/CVLM/datasets/iglue/datasets/xNLI/annotations_machine-translate/ru/test.jsonl'
+
+
+valid_languages: ['zh', 'sw', 'ar', 'bn', 'bg', 'cs', 'da', 'de', 'el', 'es', 'et', 'fr', 'id', 'ja', 'ko', 'pt', 'ru', 'ta', 'tr', 'vi', 'en']
+
+bert_config: 'albef/configs/config_xlm-r.json'
+
+image_res: 384
+batch_size_train: 32
+batch_size_test: 64
+
+vision_width: 768
+embed_dim: 256
+temp: 0.07
+k_test: 128
+text_encoder: 'bert-base-uncased'
+model_type: 'classification' # or generation
+answer_num: 1853
+cls_head: {head_type: 'linear', class_num: 3}
+freeze_module: ['txt_encoder', 'vis_encoder', 'embedding']
+
+alpha: 0.4
+distill: True
+warm_up: True
+
+optimizer: {opt: adamW, lr: 2e-5, weight_decay: 0.02} 
+schedular: {sched: cosine, lr: 1e-5, epochs: 10, min_lr: 1e-6, decay_rate: 1, warmup_lr: 1e-5, warmup_epochs: 1, cooldown_epochs: 0}

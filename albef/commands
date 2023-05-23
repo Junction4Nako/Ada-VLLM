@@ -1,0 +1,405 @@
+# word embedding transfer
+python3 cvlm/embedding_trans.py --source_emb /opt/tiger/tmp_vlp/xlm/xlm_embeddings.pth \
+--source_tokenizer xlm-mlm-xnli15-1024 --target_emb /opt/tiger/vinvl_dev/pretrained_models/albef/raw14m/word_embeddings.pth \
+--target_tokenizer bert-base-uncased  --dict_file cvlm/tmp_data/vinvl2xlm_tokens.txt \
+--mapping_mod same_word  --output_dir output/emb_trans/ --closed_form 
+
+# word embedding transfer (XLM-R)
+python3 cvlm/embedding_trans.py --source_emb /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/token_embedding.pt \
+--source_tokenizer xlm-roberta-base --target_emb /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_token_embeddings.pth \
+--target_tokenizer bert-base-uncased  --dict_file cvlm/tmp_data/bert_freq_tokens.txt \
+--mapping_mod same_word  --output_dir output/emb_trans/xlm_r/ --closed_form 
+
+deepspeed --include localhost:0,1 cvlm/run_pretrain_cvlm_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/albef_test  \
+    --tokenizer_name bert-base-uncased --model_name_or_path pretrained_models/albef/ALBEF.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35   --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 256 \
+    --ckpt_period 10000 --max_iters 300000 --warmup_steps 60000   --log_period 100 \
+    --data_dir /opt/tiger/vinvl_ft/pretrain_datasets/ --dataset_file wukong_aic_img.yaml
+
+
+# run retrieval
+python3 cvlm/run_retrieval_albef.py \
+    --albef_config albef/configs/retrieval_base_fk30_zh.yaml \
+    --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm.pth \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 \
+    --do_train --do_lower_case --save_steps 1200 \
+    --per_gpu_train_batch_size 16 --learning_rate 0.00004 \
+    --per_gpu_eval_batch_size 32 \
+    --num_train_epochs 10 --weight_decay 0.05 \
+    --max_seq_length 50  --evaluate_during_training \
+    --num_captions_per_img_val 128 --num_images_per_cap_val 64 \
+    --output_dir output_fk_cn/albef_emb_trans/
+
+# test retrieval on flickr30k-cn
+python3 cvlm/run_retrieval_albef.py \
+    --albef_config albef/configs/retrieval_base.yaml \
+    --eval_model_dir output_fk_cn/albef_test_full/checkpoint-8-9600/ \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 \
+    --do_test --do_eval --eval_split test \
+    --per_gpu_eval_batch_size 64 --max_seq_length 50 \
+    --num_captions_per_img_val 128 --num_images_per_cap_val 64 \
+    --output_dir output_fk_cn/albef_test/
+
+# pretrain with multiUN paired texts and coco_vg_cc image-text pairs
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage1_tlm.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_tlm_teacher/  \
+    --tokenizer_name pretrained_models/albef/albef_xlm --model_name_or_path pretrained_models/albef/albef_xlm/ALBEF_xlm.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 6 --drop_out 0.1  --train_batch_size 1024 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 3072  --img_txt_mod img-txt-contras \
+    --ckpt_period 3000 --max_iters 90000 --warmup_steps 9000   --log_period 100  --txt_txt_mod txt-txt-tlm \
+    --data_dir /opt/tiger/vinvl_dev/pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml
+
+# pretrain with MultiUN paired texts and coco_vg_cc image-text pairs
+# with weak token alignment in txt-txt pairs
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage1+tlm.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_wla/  \
+    --tokenizer_name xlm-roberta-base  --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 6000 --max_iters 90000 --warmup_steps 9000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml
+
+# for xlm-r based stage-1 and larger batch size
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_xlm-r_large/  \
+    --tokenizer_name xlm-roberta-base --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm-r.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 1024 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 3072  --img_txt_mod img-txt-contras \
+    --ckpt_period 3000 --max_iters 45000 --warmup_steps 4500   --log_period 100  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml
+
+# xlm-r and small batch size for 201
+deepspeed --include localhost:0,1,2,3,4,5,7 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_xlm-r_ep30/  \
+    --tokenizer_name xlm-roberta-base --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm-r.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 896 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 2688  --img_txt_mod img-txt-contras \
+    --ckpt_period 3500 --max_iters 105000 --warmup_steps 10500   --log_period 100  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml
+
+
+# xlm-r and small batch size for 201 or 234 (with updated cc datasets)
+deepspeed --include localhost:0,1,2,3,4,5,7 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_xlm-r_full/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm-r.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 3 --drop_out 0.1  --train_batch_size 896 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 2688  --img_txt_mod img-txt-contras \
+    --ckpt_period 4700 --max_iters 70500 --warmup_steps 7050   --log_period 100  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml
+
+# xlm-r and small batch size for 83 or 84 (with updated cc datasets and all languages)
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_xlm-r_all_langs_refined/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm-r.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2304  --img_txt_mod img-txt-contras \
+    --ckpt_period 8000 --max_iters 120000 --warmup_steps 12000   --log_period 100  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers
+
+# baseline for only zh translation pair
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_xlm-r_sub_zh/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm-r.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified_zh.yaml --train_batch_size_txt 512  --img_txt_mod img-txt-contras \
+    --ckpt_period 8000 --max_iters 120000 --warmup_steps 12000   --log_period 100  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers
+
+# for 8 GPUs
+deepspeed --include localhost:0,1,2,3,4,5,6 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage1_wla_tk.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage1_wla_tk3/  \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 --model_name_or_path /remote-home/zjli/CVLM/ckpt/pretrained/ALBEF_xlm.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 896 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 2688  --img_txt_mod img-txt-contras \
+    --ckpt_period 3500 --max_iters 52500 --warmup_steps 5250   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml
+
+# stage 2
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage2.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_test/  \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 --model_name_or_path /remote-home/zjli/CVLM/ckpt/stage1_full/checkpoint-0045000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 6000 --max_iters 90000 --warmup_steps 9000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file coco_vg_oi_img_od.yaml
+
+# stage 2 with translated mm pairs
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage2.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_trans/  \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 --model_name_or_path /remote-home/zjli/CVLM/ckpt/stage1_full/checkpoint-0045000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 6000 --max_iters 90000 --warmup_steps 9000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file coco_vg_oi_img_od.yaml --trans_dataset_file cc_coco_vg_img_trans.yaml
+
+# stage 2 8GPUs
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage2.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_trans_8gpu/  \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 --model_name_or_path /remote-home/zjli/CVLM/ckpt/stage1_full/checkpoint-0045000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 9000 --max_iters 270000 --warmup_steps 27000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file coco_vg_oi_img_od.yaml --trans_dataset_file cc_coco_vg_img_trans.yaml
+
+# only for 201 by loading from root
+deepspeed --include localhost:0,1,2,3,4,5,6 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm_stage2.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_trans_7gpu/  \
+    --tokenizer_name xlm-mlm-tlm-xnli15-1024 --model_name_or_path /remote-home/zjli/CVLM/ckpt/stage1_full/checkpoint-0045000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 9000 --max_iters 270000 --warmup_steps 27000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --dataset_file coco_vg_oi_img_od.yaml --trans_dataset_file cc_coco_vg_img_trans.yaml
+
+# for 201 and xlm-r stage 2 without od dataset
+deepspeed --include localhost:0,1,2,3,4,5,7 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlmr_stage2.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_xlmr_trans_7gpu/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_full/checkpoint-0070500/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 9000 --max_iters 270000 --warmup_steps 27000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --trans_dataset_file cc_coco_vg_img_trans.yaml
+
+# all languages stage-2
+deepspeed --include localhost:0,1,2,3,4,5,7 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlmr_stage2_lang.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_xlmr_trans_all_lang/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 1536  --img_txt_mod img-txt-contras \
+    --ckpt_period 9000 --max_iters 270000 --warmup_steps 27000   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --trans_dataset_file root_based/cc_coco_vg_img_trans.yaml
+
+# all languages stage-2 with visual encoder frozen
+deepspeed --include localhost:0,1,2,3,4,5,7 cvlm/run_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlmr_stage2_lang_vis_freeze.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/stage2_xlmr_trans_all_lang_vis_freeze/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 896 \
+    --txt_dataset_file MultiUN_en-zh.yaml --train_batch_size_txt 3072  --img_txt_mod img-txt-contras \
+    --ckpt_period 4500 --max_iters 135000 --warmup_steps 13500   --log_period 100  --txt_txt_mod txt-txt-wla \
+    --data_dir ./pretrain_datasets/ --trans_dataset_file root_based/cc_coco_vg_img_trans.yaml
+
+
+# freezing visual encoder
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unfied_stage2_xlm-r_all_langs_8gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2304  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers --data_debug
+
+# for 83 84
+deepspeed --include localhost:0,1,2,3 cvlm/run_stage1_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unfied_stage2_xlm-r_all_langs/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2304  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers --data_debug
+
+
+# unified mono MLM + TLM + cMLM
+deepspeed --include localhost:1,3 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_4gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 256 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1024  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub100M.yaml  --train_batch_size_mono_txt 1024  --mono_txt_max_length 128 --data_debug
+
+# the above for 7 gpus
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_7gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1792  --img_txt_mod img-txt-full \
+    --ckpt_period 9000 --max_iters 270000 --warmup_steps 27000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub800M.yaml  --train_batch_size_mono_txt 1792  --mono_txt_max_length 64
+
+# the above with 128 text length
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_128txt/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub100M.yaml  --train_batch_size_mono_txt 512  --mono_txt_max_length 128
+
+# different mask probability
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_stage1_prob25_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_cond_prob25/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain/stage1_xlm-r_all_langs/checkpoint-0120000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# using XLM-R-base as the initialized checkpoint
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_8gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# half version for ablation study
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_8gpus_half/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 120000 --warmup_steps 12000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# half version for ablation study on xmlm
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_abl-mlm_8gpus_half/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 120000 --warmup_steps 12000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64  --mono_debug
+
+# half version for ablation study on tlm + contras
+deepspeed --include localhost:0,1,2,3,4,5,6 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_abl-trans_7gpus_half/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1792  --img_txt_mod img-txt-full \
+    --ckpt_period 9200 --max_iters 138000 --warmup_steps 13800   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 1792  --mono_txt_max_length 64  --ablate_tlm
+
+# using XLM-R-base as the initialized checkpoint and different probability
+deepspeed --include localhost:0,1,2,3,4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain/pretrain_base_xlm-r_unistage2_condprob25_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_prob25_8gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# using XLM-R-base as the initialized checkpoint and different probability (for 7 GPUs)
+deepspeed --include localhost:0,1,2,3,4,5,6 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain/pretrain_base_xlm-r_unistage2_condprob25_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_prob25_7gpus/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1792  --img_txt_mod img-txt-full \
+    --ckpt_period 9200 --max_iters 276000 --warmup_steps 27600   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 1792  --mono_txt_max_length 64
+
+
+# using XLM-R-base as the initialized checkpoint and different probability (ablate tlm)
+deepspeed --include localhost:0,1,2,3,4,5,6 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_abl-tlm_7gpus_half/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 448 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1792  --img_txt_mod img-txt-full \
+    --ckpt_period 9200 --max_iters 138000 --warmup_steps 13800   --log_period 10  --txt_txt_mod txt-txt-contras \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub800M.yaml  --train_batch_size_mono_txt 1792  --mono_txt_max_length 64
+
+# using XLM-R-base as the initialized checkpoint and different probability (ablate disentanglement)
+deepspeed --include localhost:0,1,2,3 cvlm/ablation/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_abl-ent_8gpus_half/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 120000 --warmup_steps 12000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file root_based/cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/cc100_sub100M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# debug for above
+deepspeed --include localhost:0 cvlm/run_uni_stage2_albef_debug.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_debug/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path pretrain//unified_stage2_xlm-r_all_langs_mono_init_8gpus/checkpoint-0008000 \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 512 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 2048  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 2048  --mono_txt_max_length 64
+
+# speed test for above
+# using XLM-R-base as the initialized checkpoint
+deepspeed --include localhost:4,5,6,7 cvlm/run_uni_stage2_albef.py \
+    --deepspeed_config oscar/tmp_config.json --albef_config albef/configs/pretrain_base_xlm-r_unistage2_freeze_vis.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/unified_stage2_xlm-r_all_langs_mono_init_speed/  \
+    --tokenizer_name /remote-home/zjli/CVLM/ckpt/pretrained/xlm-r/ --model_name_or_path /remote-home/zjli/tmp_data/xlm-roberta-base/albef_xlmr_roberta_base_ver2.pt \
+    --do_lower_case --learning_rate 1e-04  --do_train  --mask_prob 0.15 --deepspeed  --avoid_mlm_head_tie \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 256 \
+    --txt_dataset_file wikimatrix_simplified.yaml --train_batch_size_txt 1024  --img_txt_mod img-txt-full \
+    --ckpt_period 8000 --max_iters 240000 --warmup_steps 24000   --log_period 10  --txt_txt_mod para_txt_full \
+    --data_dir ./pretrain_datasets/ --dataset_file cc_coco_vg_img.yaml  --txt_dataformat transformers \
+    --mono_txt_dataset_file text_mono/root_cc100_sub800M.yaml  --train_batch_size_mono_txt 1024  --mono_txt_max_length 64 --mono_debug
