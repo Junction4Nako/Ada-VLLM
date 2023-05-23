@@ -1,0 +1,9 @@
+# training the embedding transformation
+python3 cvlm/embedding_trans.py \
+--source_emb pretrained_models/xlm/xlm-mlm-tlm-xnli15-1024/word_embeddings.pth \
+--source_tokenizer pretrained_models/xlm/xlm-mlm-tlm-xnli15-1024/ \
+--target_emb pretrained_models/mvptr/base/pytorch_model.bin \
+--target_tokenizer pretrained_models/mvptr/base  --dict_file cvlm/tmp_data/vinvl2xlm_tokens.txt \
+--mapping_mod same_word --output_dir output/vinvl2xlm_word/  --per_gpu_train_batch_size 64 \
+--per_gpu_eval_batch_size 64 --learning_rate 0.01  --num_train_epochs 5 \
+--logging_steps 20  --save_steps 40  --evaluate_during_training
