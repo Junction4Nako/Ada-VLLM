@@ -564,7 +564,8 @@ def main():
                 if get_rank() == 0:
                     print('grad1', model_engine.module.Qformer.cls.predictions.decoder.weight.grad)
                     print('grad2', model_engine.module.Qformer.bert.embeddings.word_embeddings.weight.grad)
-                    print('grad3', model_engine.module.Qformer.cls.predictions.decoder.bias.grad)
+                    print('grad3:{}'.format(model_engine.module.Qformer.cls.predictions.decoder.bias.requires_grad), model_engine.module.Qformer.cls.predictions.decoder.bias.grad)
+                    print('grad4', model_engine.module.Qformer.cls.predictions.transform.dense.weight.grad)
                 # raise ValueError
             else:
                 if args.gradient_accumulation_steps > 1:
