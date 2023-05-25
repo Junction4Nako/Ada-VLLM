@@ -389,10 +389,11 @@ def main():
             new_emb = model.Qformer.bert.embeddings.word_embeddings.weight.data.clone()
             new_bias = model.Qformer.cls.predictions.bias.data.clone()
             # re-normalize the randomly-initialized embeddings
-            # new_emb_norm = torch.norm(new_emb, dim=-1, p=2)
-            # target_norm = torch.norm(ori_emb, dim=-1, p=2).mean().item()
-            # rescale_coef = target_norm / new_emb_norm
-            # new_emb = new_emb * rescale_coef.unsqueeze(1)
+            logger.info('nomalizing the embedding norms')
+            new_emb_norm = torch.norm(new_emb, dim=-1, p=2)
+            target_norm = torch.norm(ori_emb, dim=-1, p=2).mean().item()
+            rescale_coef = target_norm / new_emb_norm
+            new_emb = new_emb * rescale_coef.unsqueeze(1)
             # assign new embeddings to the old one
             new_emb[:old_word_emb_size, :] = ori_emb
             new_bias[:old_word_emb_size] = ori_bias
@@ -563,6 +564,7 @@ def main():
                 if get_rank() == 0:
                     print('grad1', model_engine.module.Qformer.cls.predictions.decoder.weight.grad)
                     print('grad2', model_engine.module.Qformer.bert.embeddings.word_embeddings.weight.grad)
+                    print('grad3', model_engine.module.Qformer.cls.predictions.decoder.bias.grad)
                 # raise ValueError
             else:
                 if args.gradient_accumulation_steps > 1:
