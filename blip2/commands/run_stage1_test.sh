@@ -1,6 +1,5 @@
 # !/bin/bash
 cd /share/project/zejunli/code/AdaBLIP/Ada-VLLM
-tmux new -s run
 
 conda activate /share/project/zejunli/envs
 
