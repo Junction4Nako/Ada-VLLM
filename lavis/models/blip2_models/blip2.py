@@ -56,7 +56,7 @@ class Blip2Base(BaseModel):
             encoder_config.adaptive = True
             encoder_config.target_vocab_size = ada_config.vocab_size
             encoder_config.target_hidden_size = ada_config.hidden_size
-            encoder_config.lmhead_bias = ada_config.lmhead_bias
+            encoder_config.lmhead_bias = getattr(ada_config, 'lmhead_bias', True)
         Qformer = BertLMHeadModel.from_pretrained(
             "bert-base-uncased", config=encoder_config, ignore_mismatched_sizes=True
         )
