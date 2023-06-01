@@ -384,10 +384,14 @@ def main():
         if 'llm_proj.target_map.weight' not in state_dict:
             # need to reformulate the key
             assert 'Qformer.cls.predictions.target_map.weight' in state_dict, 'key not included, please check'
+            tmp_key_to_del = []
             for k,v in state_dict.items():
                 if k.startswith('Qformer.cls.predictions'):
+                    tmp_key_to_del.append(k)
                     state_dict['llm_proj.{}'.format(k[24:])] = v
-                    del state_dict[k] 
+                    
+            for k in tmp_key_to_del:        
+                del state_dict[k] 
 
         state_dict = {k:v for k,v in state_dict.items() if k in target_keys and k not in tmp_keys}
 
