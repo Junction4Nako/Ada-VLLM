@@ -148,8 +148,9 @@ class Blip2Llama(Blip2Base):
         # print('-----------------')
 
         image = samples["image"]
-        with self.maybe_autocast():
-            image_embeds = self.ln_vision(self.visual_encoder(image))
+        # with self.maybe_autocast():
+        #     image_embeds = self.ln_vision(self.visual_encoder(image))
+        image_embeds = self.ln_vision(self.visual_encoder(image))
         image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
 
         bs = image.size(0)
@@ -211,14 +212,19 @@ class Blip2Llama(Blip2Base):
         inputs_embeds = torch.cat([inputs_llm, inputs_embeds], dim=1)
         attention_mask = torch.cat([atts_llm, llm_tokens['attention_mask']], dim=1)
 
-        with self.maybe_autocast():
-            outputs = self.llm_model(
+        # with self.maybe_autocast():
+        #     outputs = self.llm_model(
+        #         inputs_embeds=inputs_embeds,
+        #         attention_mask=attention_mask,
+        #         return_dict=True,
+        #         labels=targets,
+        #     )
+        outputs = self.llm_model(
                 inputs_embeds=inputs_embeds,
                 attention_mask=attention_mask,
                 return_dict=True,
                 labels=targets,
             )
-
         loss = outputs.loss
 
         return loss
