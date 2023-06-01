@@ -376,8 +376,10 @@ def main():
         # tmp_keys = ['text_encoder.bert.embeddings.word_embeddings.weight', 'text_encoder.cls.predictions.decoder.bias', 'text_encoder.cls.predictions.decoder.weight', 'text_encoder.cls.predictions.bias']
         tmp_keys = []
         
-        if 'model' in state_dict:
-            state_dict = state_dict['model']
+        if 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
         
         if 'llm_proj.target_map.weight' not in state_dict:
             # need to reformulate the key
@@ -387,7 +389,7 @@ def main():
                     state_dict['llm_proj.{}'.format(k[24:])] = v
                     del state_dict[k] 
 
-        state_dict = {k:v for k,v in checkpoint.items() if k in target_keys and k not in tmp_keys}
+        state_dict = {k:v for k,v in state_dict.items() if k in target_keys and k not in tmp_keys}
 
         # resize the word embeddings shape
         old_word_emb_size = state_dict['Qformer.bert.embeddings.word_embeddings.weight'].shape[0]
