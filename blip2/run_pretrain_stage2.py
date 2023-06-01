@@ -362,7 +362,6 @@ def main():
                         max_txt_len=config['model']['max_txt_len'],
                         ada_config=ada_config,
                         ada_tokenizer=tokenizer,
-                        lmhead_bias=config['model']['lmhead_bias'],
                         llm_model=config['model']['llm'])
 
     logger.info('model config: {}'.format(json.dumps(config)))
@@ -563,11 +562,9 @@ def main():
                 outputs = model(model_inputs)
 
             # torch.save(outputs, '/opt/tiger/debug/test_output.pt')
-            loss_lm, loss_itc, loss_itm = outputs
-            loss = loss_weight * (loss_lm + loss_itc + loss_itm)
+            loss_lm  = outputs
+            loss = loss_weight * loss_lm
             loss_lm = loss_weight * loss_lm.item()
-            loss_itc = loss_weight * loss_itc.item()
-            loss_itm = loss_weight * loss_itm.item()
 
             if args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu.
@@ -585,7 +582,7 @@ def main():
                     loss = loss / args.gradient_accumulation_steps
                 loss.backward()
 
-            return loss.item(), model_inputs['image'].size(0), loss_lm, loss_itc, loss_itm
+            return loss.item(), model_inputs['image'].size(0), loss_lm
 
         start1 = time.time()
 
@@ -595,7 +592,7 @@ def main():
         #         input_mask_b=input_mask_b1, segment_ids_b=segment_ids_b1, lm_label_ids_b=lm_label_ids_b1,
         #         loss_weight=1.0-args.extra_loss_weight, phrase_index=phrase_index, image_index=image_index, phrase_mask_label=phrase_mask_label1
         #     )
-        loss1, nb_tr_example1, lm_loss1, itc_loss1, itm_loss1 = forward_backward(model_inputs=model_inputs1, loss_weight=1.0)
+        loss1, nb_tr_example1, lm_loss1 = forward_backward(model_inputs=model_inputs1, loss_weight=1.0)
         # return None
         tr_loss += loss1
         nb_tr_examples += nb_tr_example1
@@ -630,8 +627,7 @@ def main():
             metrics_to_log = {
                 'time_info': {'compute': batch_time/args.gradient_accumulation_steps, 'data': data_time,
                               'compute1': compute_time1},
-                'batch_metrics': {'loss': loss1+loss2, 'lm_loss':lm_loss1+lm_loss2, 'itc_loss':itc_loss1+itc_loss2, 
-                        'itm_loss': itm_loss1+itm_loss2}
+                'batch_metrics': {'loss': loss1+loss2, 'lm_loss':lm_loss1+lm_loss2}
             }
             # print(metrics_to_log)
             params_to_log = {'params': {'bert_lr': optimizer.param_groups[0]["lr"]}}
