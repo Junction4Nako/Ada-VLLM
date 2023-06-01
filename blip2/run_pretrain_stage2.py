@@ -385,12 +385,13 @@ def main():
             # need to reformulate the key
             assert 'Qformer.cls.predictions.target_map.weight' in state_dict, 'key not included, please check'
             tmp_key_to_del = []
+            logger.info('reformulate llm proj from cls layer in stage1')
             for k,v in state_dict.items():
                 if k.startswith('Qformer.cls.predictions'):
                     tmp_key_to_del.append(k)
-                    state_dict['llm_proj.{}'.format(k[24:])] = v
                     
-            for k in tmp_key_to_del:        
+            for k in tmp_key_to_del:
+                state_dict['llm_proj.{}'.format(k[24:])] = state_dict[k]        
                 del state_dict[k] 
 
         state_dict = {k:v for k,v in state_dict.items() if k in target_keys and k not in tmp_keys}
