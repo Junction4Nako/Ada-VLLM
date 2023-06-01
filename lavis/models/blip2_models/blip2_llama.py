@@ -15,7 +15,7 @@ from lavis.common.registry import registry
 from lavis.models.blip2_models.blip2 import Blip2Base, disabled_train
 
 @registry.register_model("blip2_vicuna_instruct")
-class Blip2LlamaInstruct(Blip2Base):
+class Blip2Llama(Blip2Base):
     """
     BLIP2 Vicuna model.
     Supported model types:
