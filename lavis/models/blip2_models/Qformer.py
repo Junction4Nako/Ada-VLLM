@@ -1174,13 +1174,13 @@ class BertLMHeadModel(BertPreTrainedModel):
         lm_loss = None
         if labels is not None:
             # we are doing next-token prediction; shift prediction scores and input ids by one
-            shifted_prediction_scores = prediction_scores[:, :-1, :-1].contiguous()
+            shifted_prediction_scores = prediction_scores[:, :-1, :-1].contiguous() # used here to avoid pad token
             labels = labels[:, 1:].contiguous()
             # removed label smoothing here!
-            loss_fct = CrossEntropyLoss(reduction=reduction, label_smoothing=0.1)
+            loss_fct = CrossEntropyLoss(reduction=reduction, label_smoothing=0.1) # may have been changed here to avoid infinity
             loss_fct = CrossEntropyLoss(reduction=reduction)
             lm_loss = loss_fct(
-                shifted_prediction_scores.view(-1, self.config.vocab_size-1),
+                shifted_prediction_scores.view(-1, self.config.vocab_size-1), # used here to avoid pad token
                 labels.view(-1),
             )
             # from oscar.utils.misc import mkdir, get_rank

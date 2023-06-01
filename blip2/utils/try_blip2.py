@@ -46,3 +46,30 @@ def close_form_solution(src, tar):
 
 bert2llama = close_form_solution(bert_tmp, llama_tmp)
 llama2bert = close_form_solution(llama_tmp, bert_tmp)
+
+import torch
+import torch.nn as nn
+from torch.optim import SGD
+
+class test(nn.Module):
+    def __init__(self, input_dim=4, out=10):
+        super(test, self).__init__()
+        self.mid_map = nn.Linear(input_dim, input_dim)
+        self.map = nn.Linear(input_dim, out)
+
+    def forward(self, input_x):
+        out_x = self.map(self.mid_map(input_x))
+        return out_x[:, :-1].contiguous()
+    
+input_dim = 4
+out = 5
+model = test(input_dim=input_dim, out=out)
+optimizer = SGD(model.parameters(), lr=0.1)
+model.train()
+input_x = torch.randn(4, input_dim)
+label = torch.randint(0, out, (4,))
+ce = nn.CrossEntropyLoss()
+
+out_x = model(input_x)
+loss = ce(out_x, label)
+loss.backward()
