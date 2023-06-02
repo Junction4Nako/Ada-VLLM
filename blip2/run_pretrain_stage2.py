@@ -316,6 +316,10 @@ def main():
         logger.info(" -> Recovering model from {}".format(last_checkpoint_dir))
 
     config = yaml.load(open(args.model_config, 'r'), Loader=yaml.Loader)
+    if 'local_ckpt' in config:
+        local_ckpt_cfg = config['local_ckpt']
+    else:
+        local_ckpt_cfg = None
     # adpat arguments from config to arguments
     args.image_size = config['model']['image_size']
     args.model_config = config
@@ -362,7 +366,8 @@ def main():
                         max_txt_len=config['model']['max_txt_len'],
                         ada_config=ada_config,
                         ada_tokenizer=tokenizer,
-                        llm_model=config['model']['llm'])
+                        llm_model=config['model']['llm'],
+                        local_ckpt_cfg=local_ckpt_cfg)
 
     logger.info('model config: {}'.format(json.dumps(config)))
     if args.model_name_or_path is not None:

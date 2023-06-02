@@ -231,7 +231,7 @@ def interpolate_pos_embed(model, state_dict, interpolation: str = 'bicubic', seq
     state_dict['positional_embedding'] = new_pos_embed
     
     
-def create_clip_vit_L(img_size=224,use_checkpoint=False,precision="fp16"):
+def create_clip_vit_L(img_size=224,use_checkpoint=False,precision="fp16", local_ckpt=None):
     model = VisionTransformer(
             input_resolution=img_size,
             patch_size=14,
@@ -241,9 +241,12 @@ def create_clip_vit_L(img_size=224,use_checkpoint=False,precision="fp16"):
             use_grad_checkpointing=use_checkpoint,
         )         
     url = "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/models/BLIP2/clip_vit_L.pth"
-    cached_file = download_cached_file(
-        url, check_hash=False, progress=True
-    )
+    if local_ckpt is not None:
+        cached_file = local_ckpt
+    else:
+        cached_file = download_cached_file(
+            url, check_hash=False, progress=True
+        )
     state_dict = torch.load(cached_file, map_location="cpu")    
     interpolate_pos_embed(model,state_dict)
     

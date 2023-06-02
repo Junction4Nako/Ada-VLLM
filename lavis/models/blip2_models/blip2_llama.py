@@ -48,6 +48,7 @@ class Blip2Llama(Blip2Base):
         cross_attention_freq=2,
         ada_tokenizer=None,
         ada_config=None,
+        local_ckpt_cfg=None
     ):
         super().__init__()
         transformers_version = version.parse(transformers.__version__)
@@ -61,8 +62,15 @@ class Blip2Llama(Blip2Base):
         else:
             self.tokenizer = self.init_tokenizer(truncation_side="left")
 
+        if local_ckpt_cfg is not None:
+            vis_local_ckpt = local_ckpt_cfg['visual']
+            txt_local_ckpt = local_ckpt_cfg['text']
+        else:
+            vis_local_ckpt = None
+            txt_local_ckpt = None
+        
         self.visual_encoder, self.ln_vision = self.init_vision_encoder(
-            vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision
+            vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision, local_ckpt=vis_local_ckpt
         )
         if freeze_vit:
             for name, param in self.visual_encoder.named_parameters():
@@ -72,7 +80,7 @@ class Blip2Llama(Blip2Base):
             logging.info("freeze vision encoder")
 
         self.Qformer, self.query_tokens = self.init_Qformer(
-            num_query_token, self.visual_encoder.num_features, ada_config=ada_config, cross_attention_freq=cross_attention_freq
+            num_query_token, self.visual_encoder.num_features, ada_config=ada_config, cross_attention_freq=cross_attention_freq, local_ckpt=txt_local_ckpt
         )
 
         if not qformer_text_input:

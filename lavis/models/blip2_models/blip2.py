@@ -44,7 +44,7 @@ class Blip2Base(BaseModel):
             return contextlib.nullcontext()
 
     @classmethod
-    def init_Qformer(cls, num_query_token, vision_width, ada_config=None, cross_attention_freq=2):
+    def init_Qformer(cls, num_query_token, vision_width, ada_config=None, cross_attention_freq=2, local_ckpt=None):
         encoder_config = BertConfig.from_pretrained("bert-base-uncased")
         encoder_config.encoder_width = vision_width
         # insert cross-attention layer every other block
@@ -57,8 +57,12 @@ class Blip2Base(BaseModel):
             encoder_config.target_vocab_size = ada_config.vocab_size
             encoder_config.target_hidden_size = ada_config.hidden_size
             encoder_config.lmhead_bias = getattr(ada_config, 'lmhead_bias', True)
+        if local_ckpt is not None:
+            bert_name = local_ckpt
+        else:
+            bert_name = 'bert-base-uncased'
         Qformer = BertLMHeadModel.from_pretrained(
-            "bert-base-uncased", config=encoder_config, ignore_mismatched_sizes=True
+            bert_name, config=encoder_config, ignore_mismatched_sizes=True
         )
         query_tokens = nn.Parameter(
             torch.zeros(1, num_query_token, encoder_config.hidden_size)
@@ -68,7 +72,7 @@ class Blip2Base(BaseModel):
 
     @classmethod
     def init_vision_encoder(
-        cls, model_name, img_size, drop_path_rate, use_grad_checkpoint, precision
+        cls, model_name, img_size, drop_path_rate, use_grad_checkpoint, precision, local_ckpt=None
     ):
         assert model_name in [
             "eva_clip_g",
@@ -76,10 +80,10 @@ class Blip2Base(BaseModel):
         ], "vit model must be eva_clip_g or clip_L"
         if model_name == "eva_clip_g":
             visual_encoder = create_eva_vit_g(
-                img_size, drop_path_rate, use_grad_checkpoint, precision
+                img_size, drop_path_rate, use_grad_checkpoint, precision, local_ckpt=local_ckpt
             )
         elif model_name == "clip_L":
-            visual_encoder = create_clip_vit_L(img_size, use_grad_checkpoint, precision)
+            visual_encoder = create_clip_vit_L(img_size, use_grad_checkpoint, precision, local_ckpt=local_ckpt)
         ln_vision = LayerNorm(visual_encoder.num_features)
         return visual_encoder, ln_vision
 
