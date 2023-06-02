@@ -4,7 +4,7 @@ cd /share/project/zejunli/code/AdaBLIP/Ada-VLLM
 conda activate /share/project/zejunli/envs
 
 deepspeed --include localhost:0,1 blip2/run_pretrain_stage1.py \
-    --deepspeed_config oscar/tmp_config.json --model_config blip2/configs/stage1/vitL_ada.yaml \
+    --deepspeed_config oscar/tmp_config.json --model_config blip2/configs/stage1/vitL_ada_baai.yaml \
     --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/blip2_test2/  \
     --tokenizer_name huggyllama/llama-7b --model_name_or_path /share/project/zejunli/ckpt/BLIP2/blip2_pretrained_vitL_ada.pth \
     --do_lower_case --learning_rate 1e-04  --do_train --deepspeed \
