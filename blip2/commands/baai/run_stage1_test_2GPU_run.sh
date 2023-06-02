@@ -1,6 +1,9 @@
 # !/bin/bash
 cd /share/project/zejunli/code/AdaBLIP/Ada-VLLM
 
+
+source /share/project/liangyiming/envs/anaconda3/etc/profile.d/conda.sh
+
 conda activate /share/project/zejunli/envs
 
 deepspeed --include localhost:0,1 blip2/run_pretrain_stage1.py \
