@@ -10,4 +10,4 @@ deepspeed --include localhost:0,1 blip2/run_pretrain_stage1.py \
     --do_lower_case --learning_rate 1e-04  --do_train --deepspeed \
     --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 256 \
     --ckpt_period 27000 --max_iters 270000 --warmup_steps 27000   --log_period 10  \
-    --data_dir ./pretrain_datasets/ --dataset_file cc12m_cc_coco_vg_img_baai.yaml  --data_debug
+    --data_dir ./pretrain_datasets/ --dataset_file cc12m_cc_coco_vg_img_baai.yaml
