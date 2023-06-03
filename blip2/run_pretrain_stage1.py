@@ -687,7 +687,10 @@ def main():
                                           'checkpoint-{:07d}'.format(
                                               step + 1))
                 if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
+                    try:
+                        os.makedirs(output_dir)
+                    except:
+                        logger.warning('fail to create the directory in rank {}'.format(get_rank()))
                 if args.deepspeed:
                     model_to_save = model
                 else:
