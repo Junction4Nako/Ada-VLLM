@@ -79,12 +79,14 @@ def main():
                         ada_config=ada_config,
                         ada_tokenizer=tokenizer,
                         llm_model=config['model']['llm'],
-                        local_ckpt_cfg=local_ckpt_cfg)
+                        local_ckpt_cfg=local_ckpt_cfg,
+                        qformer_text_input=False)
     
     ckpt = torch.load(args.checkpoint, map_location='cpu')
     model.load_state_dict(ckpt['model'])
 
-    image_transform = create_transform('test')
+    trans_cfg = {'image_res': config['image_size']}
+    image_transform = create_transform(trans_cfg, 'test')
     img = image_transform(img)
 
 
