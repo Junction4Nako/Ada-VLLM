@@ -89,10 +89,11 @@ def main():
     image_transform = create_transform(trans_cfg, 'test')
     img = image_transform(img)
 
-
+    model.eval()
+    device = torch.device(args.device)
+    model.to(device)
+    
     with torch.no_grad():
-        model.eval()
-        device = torch.device(args.device)
         img = img.unsqueeze(0).to(device)
         samples = {'image': img, 'prompt': args.text}
         res = model.generate(samples)

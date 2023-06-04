@@ -207,6 +207,7 @@ def main():
     parser.add_argument('--avoid_mlm_head_tie', action='store_true', help='whether to avoid mlm head tie')
     parser.add_argument('--mono_debug', action='store_true')
     parser.add_argument('--ablate_tlm', action='store_true', help='whether to ablate the translation MLM')
+    parser.add_argument('--no_autocontrast', action='store_true', help='remove auto contrast in augmentation')
 
     # parser.add_argument('--deepspeed', action='store_true', help='whether to use deepspeed')
     parser = deepspeed.add_config_arguments(parser)

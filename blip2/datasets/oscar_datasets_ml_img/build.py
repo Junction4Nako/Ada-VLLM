@@ -15,25 +15,43 @@ import yaml
 from lavis.common.registry import registry
 
 
-def create_transform(config, name='pretrain'):
+def create_transform(config, name='pretrain', auto_contrast=True):
     normalize = transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
     
-    pretrain_transform = transforms.Compose([                        
-            transforms.RandomResizedCrop(config['image_res'],scale=(0.2, 1.0), interpolation=Image.BICUBIC),
-            transforms.RandomHorizontalFlip(),
-            RandomAugment(2,7,isPIL=True,augs=['Identity','AutoContrast','Equalize','Brightness','Sharpness',
-                                              'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
-            transforms.ToTensor(),
-            normalize,
-        ])    
-    train_transform = transforms.Compose([                        
-            transforms.RandomResizedCrop(config['image_res'],scale=(0.5, 1.0), interpolation=Image.BICUBIC),
-            transforms.RandomHorizontalFlip(),
-            RandomAugment(2,7,isPIL=True,augs=['Identity','AutoContrast','Equalize','Brightness','Sharpness',
-                                              'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
-            transforms.ToTensor(),
-            normalize,
-        ])  
+    if auto_contrast:
+        pretrain_transform = transforms.Compose([                        
+                transforms.RandomResizedCrop(config['image_res'],scale=(0.2, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                RandomAugment(2,5,isPIL=True,augs=['Identity','AutoContrast','Equalize','Brightness','Sharpness',
+                                                'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
+                transforms.ToTensor(),
+                normalize,
+            ])    
+        train_transform = transforms.Compose([                        
+                transforms.RandomResizedCrop(config['image_res'],scale=(0.5, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                RandomAugment(2,5,isPIL=True,augs=['Identity','AutoContrast','Equalize','Brightness','Sharpness',
+                                                'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
+                transforms.ToTensor(),
+                normalize,
+            ])
+    else:
+        pretrain_transform = transforms.Compose([                        
+                transforms.RandomResizedCrop(config['image_res'],scale=(0.2, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                RandomAugment(2,5,isPIL=True,augs=['Identity','Equalize','Brightness','Sharpness',
+                                                'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
+                transforms.ToTensor(),
+                normalize,
+            ])    
+        train_transform = transforms.Compose([                        
+                transforms.RandomResizedCrop(config['image_res'],scale=(0.5, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                RandomAugment(2,5,isPIL=True,augs=['Identity','Equalize','Brightness','Sharpness',
+                                                'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),     
+                transforms.ToTensor(),
+                normalize,
+            ])
     test_transform = transforms.Compose([
         transforms.Resize((config['image_res'],config['image_res']),interpolation=Image.BICUBIC),
         transforms.ToTensor(),
@@ -82,7 +100,8 @@ def build_dataset(args, tokenizer):
 
     # refine the image resolution
     config['image_res'] = args.image_size
-    old_transform = create_transform(config, 'pretrain')
+    auto_contrast = not args.no_autocontrast
+    old_transform = create_transform(config, 'pretrain', auto_contrast=auto_contrast)
     processor_cfg = args.model_config['preprocess']
     image_processor = registry.get_processor_class(processor_cfg['vis_processor']['train']['name']).from_config(processor_cfg['vis_processor']['train'])
     text_processor = registry.get_processor_class(processor_cfg['text_processor']['train']['name']).from_config(processor_cfg['text_processor']['train'])
