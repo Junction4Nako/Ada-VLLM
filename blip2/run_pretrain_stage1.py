@@ -436,6 +436,8 @@ def main():
     # )
 
     arg_opt = albef_utils.AttrDict(config['optimizer'])
+    if args.learning_rate is not None:
+        arg_opt['lr'] = args.learning_rate
     optimizer = create_optimizer(arg_opt, model)
     # arg_sche = albef_utils.AttrDict(config['scheduler'])
     scheduler = WarmupLinearSchedule(optimizer,

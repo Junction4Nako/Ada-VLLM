@@ -454,6 +454,8 @@ def main():
     # )
 
     arg_opt = albef_utils.AttrDict(config['optimizer'])
+    if args.learning_rate is not None:
+        arg_opt['lr'] = args.learning_rate
     optimizer = create_optimizer(arg_opt, model)
     # arg_sche = albef_utils.AttrDict(config['scheduler'])
     scheduler = WarmupLinearSchedule(optimizer,
@@ -703,7 +705,10 @@ def main():
                                           'checkpoint-{:07d}'.format(
                                               step + 1))
                 if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
+                    try:
+                        os.makedirs(output_dir)
+                    except:
+                        logger.warning('checkpoint create error in GPU {}'.format(get_rank()))
                 if args.deepspeed:
                     model_to_save = model
                 else:
