@@ -69,6 +69,7 @@ class Blip2Llama(Blip2Base):
             vis_local_ckpt = None
             txt_local_ckpt = None
         
+        print('initializing vision encoder from {}'.format(vit_model))
         self.visual_encoder, self.ln_vision = self.init_vision_encoder(
             vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision, local_ckpt=vis_local_ckpt
         )
@@ -79,6 +80,7 @@ class Blip2Llama(Blip2Base):
             self.visual_encoder.train = disabled_train
             logging.info("freeze vision encoder")
 
+        print('initializing Qformer')
         self.Qformer, self.query_tokens = self.init_Qformer(
             num_query_token, self.visual_encoder.num_features, ada_config=ada_config, cross_attention_freq=cross_attention_freq, local_ckpt=txt_local_ckpt
         )
@@ -96,6 +98,7 @@ class Blip2Llama(Blip2Base):
         self.llm_proj.bias = None
         self.Qformer.cls = None
 
+        print('initializing LLM from {}'.format(llm_model))
         self.llm_tokenizer = LlamaTokenizer.from_pretrained(llm_model, use_fast=False, truncation_side="left")
         self.llm_model = LlamaForCausalLM.from_pretrained(
             llm_model, torch_dtype=torch.float16
