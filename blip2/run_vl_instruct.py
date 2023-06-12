@@ -413,6 +413,7 @@ def main():
             
 
         if new_word_emb_size > old_word_emb_size:
+            logger.info('found unmatched embedding size')
             ori_emb = state_dict['Qformer.bert.embeddings.word_embeddings.weight']
             ori_bias = state_dict['Qformer.cls.predictions.bias']
             new_emb = model.Qformer.bert.embeddings.word_embeddings.weight.data.clone()

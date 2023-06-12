@@ -88,11 +88,12 @@ class Blip2Llama(Blip2Base):
         )
 
         if not qformer_text_input:
-            self.Qformer.bert.embeddings.word_embeddings = None
-            self.Qformer.bert.embeddings.position_embeddings = None
-            for layer in self.Qformer.bert.encoder.layer:
-                layer.output = None
-                layer.intermediate = None
+            pass
+            # self.Qformer.bert.embeddings.word_embeddings = None
+            # self.Qformer.bert.embeddings.position_embeddings = None
+            # for layer in self.Qformer.bert.encoder.layer:
+            #     layer.output = None
+            #     layer.intermediate = None
         else:
             self.Qformer.resize_token_embeddings(len(self.tokenizer))
         self.llm_proj = self.Qformer.cls.predictions
@@ -333,6 +334,10 @@ class Blip2Llama(Blip2Base):
         )
         targets = torch.cat([empty_targets, targets], dim=1)
 
+        # print('input', samples['text_input'], 'output', samples['text_output'])
+        # print('input_ids shape:', llm_tokens['input_ids'].shape, llm_tokens['input_ids'])
+        # print('targets shape', targets.shape, targets)
+        # raise ValueError
         inputs_embeds = self.llm_model.get_input_embeddings()(llm_tokens['input_ids'])
         inputs_embeds = torch.cat([inputs_llm, inputs_embeds], dim=1)
         attention_mask = torch.cat([atts_llm, llm_tokens['attention_mask']], dim=1)
