@@ -7,7 +7,7 @@ import logging
 import re
 from PIL import Image
 
-class Llava_Instrcuct(Dataset):
+class Llava_Instruct(Dataset):
     def __init__(self, data_path, image_dir, image_transform, header=None, line_sep=None):
         self.image_dir = image_dir
         self.data = []

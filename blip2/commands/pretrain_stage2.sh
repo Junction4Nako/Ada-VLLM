@@ -26,3 +26,14 @@ deepspeed --include localhost:0,1,2,3 blip2/run_pretrain_stage2.py \
     --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 128 \
     --ckpt_period 20000 --max_iters 200000 --warmup_steps 20000   --log_period 10  \
     --data_dir ./pretrain_datasets/ --dataset_file cc12m_cc_coco_vg_img_baai.yaml --data_debug
+
+
+# for instruct tuning on llava
+deepspeed --include localhost:0,1,2,3,4,5,6,7 blip2/run_vl_instruct.py \
+    --deepspeed_config oscar/tmp_config.json --model_config blip2/configs/instruct_tuning/vitL_ada_vicuna.yaml \
+    --max_grad_norm 10.0 --gradient_accumulation_steps 1 --output_dir pretrain/blip2_instruct_llava_vicuna_8GPUS/  \
+    --tokenizer_name huggyllama/llama-7b --model_name_or_path pretrain/blip2_stage2_vicuna_8GPUS/checkpoint-0050000/ckpt.pth \
+    --do_lower_case --learning_rate 1e-05  --do_train --deepspeed \
+    --max_seq_length 35  --max_seq_length_txt 50  --on_memory  --num_workers 4 --drop_out 0.1  --train_batch_size 64 \
+    --ckpt_period 5000 --max_iters 10000 --warmup_steps 500   --log_period 10  \
+    --data_dir ./ --dataset_file blip2/configs/instruct_dataset/llava_local.yaml --no_autocontrast
