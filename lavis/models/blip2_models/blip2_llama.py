@@ -43,12 +43,14 @@ class Blip2Llama(Blip2Base):
         llm_model="",
         prompt="",
         max_txt_len=32,
+        max_output_txt_len=256,
         apply_lemmatizer=False,
         qformer_text_input=True,
         cross_attention_freq=2,
         ada_tokenizer=None,
         ada_config=None,
-        local_ckpt_cfg=None
+        local_ckpt_cfg=None,
+        forward_mod='captioning'
     ):
         super().__init__()
         transformers_version = version.parse(transformers.__version__)
@@ -119,7 +121,7 @@ class Blip2Llama(Blip2Base):
             param.requires_grad = False
 
         self.max_txt_len = max_txt_len
-        # self.max_output_txt_len = max_output_txt_len
+        self.max_output_txt_len = max_output_txt_len
         self.prompt = prompt
         prompt_tokens = self.llm_tokenizer(self.prompt, return_tensors="pt")
         self.prompt_length = prompt_tokens.attention_mask.sum(1)
@@ -127,6 +129,7 @@ class Blip2Llama(Blip2Base):
         self._lemmatizer = None
 
         self.qformer_text_input = qformer_text_input
+        self.forward_mod = forward_mod
 
     def concat_text_input_output(self, input_ids, input_atts, output_ids, output_atts):
         input_part_targets_len = []
@@ -153,6 +156,12 @@ class Blip2Llama(Blip2Base):
         return llm_tokens, input_part_targets_len
 
     def forward(self, samples):
+        if self.forward_mod == 'captioning':
+            return self.forward_captioning(samples)
+        elif self.forward_mod == 'instruct_tuning':
+            return self.forward_instruct_tuning(samples)
+    
+    def forward_captioning(self, samples):
         # print('-----------------')
         # print(samples["text_input"])
         # print(samples["text_output"])
@@ -236,6 +245,105 @@ class Blip2Llama(Blip2Base):
                 return_dict=True,
                 labels=targets,
             )
+        loss = outputs.loss
+
+        return loss
+    
+    def forward_instruct_tuning(self, samples):
+        # print('-----------------')
+        # print(samples["text_input"])
+        # print(samples["text_output"])
+        # print('-----------------')
+
+        image = samples["image"]
+        image_embeds = self.ln_vision(self.visual_encoder(image))
+        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(image.device)
+
+        bs = image.size(0)
+
+        query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+        if self.qformer_text_input:
+            text_Qformer = self.tokenizer(
+                samples["text_input"],
+                padding='longest',
+                truncation=True,
+                max_length=self.max_txt_len,
+                return_tensors="pt",
+            ).to(image.device)
+            query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(image.device)
+            Qformer_atts = torch.cat([query_atts, text_Qformer.attention_mask],dim=1)
+
+            query_output = self.Qformer.bert(
+                text_Qformer.input_ids,
+                attention_mask=Qformer_atts,
+                query_embeds=query_tokens,
+                encoder_hidden_states=image_embeds,
+                encoder_attention_mask=image_atts,
+                return_dict=True,
+            )
+        else:
+            query_output = self.Qformer.bert(
+                query_embeds=query_tokens,
+                encoder_hidden_states=image_embeds,
+                encoder_attention_mask=image_atts,
+                return_dict=True,
+            )
+
+        inputs_llm = self.llm_proj(query_output.last_hidden_state[:,:query_tokens.size(1),:], return_hidden_states=True)
+        atts_llm = torch.ones(inputs_llm.size()[:-1], dtype=torch.long).to(image.device)
+
+        self.llm_tokenizer.padding_side = "right"
+        self.llm_tokenizer.truncation_side = 'left'
+        text_input_tokens = self.llm_tokenizer(
+            samples['text_input'],
+            return_tensors="pt",
+            padding="longest",
+            truncation=True,
+            max_length=self.max_txt_len,
+        ).to(image.device)
+
+        self.llm_tokenizer.truncation_side = 'right'
+        text_output_tokens = self.llm_tokenizer(
+            [t + self.llm_tokenizer.eos_token for t in samples['text_output']],
+            return_tensors="pt",
+            padding="longest",
+            truncation=True,
+            max_length=self.max_output_txt_len,
+        ).to(image.device)
+
+        llm_tokens, input_part_targets_len = self.concat_text_input_output(
+            text_input_tokens.input_ids,
+            text_input_tokens.attention_mask,
+            text_output_tokens.input_ids,
+            text_output_tokens.attention_mask,
+        )
+
+        # do not apply loss to the padding
+        targets = llm_tokens['input_ids'].masked_fill(
+            llm_tokens['input_ids'] == self.llm_tokenizer.pad_token_id, -100
+        )
+
+        # do not apply loss to the text input (i.e., instruction)
+        for i, l in enumerate(input_part_targets_len):
+            targets[i][:l] = -100
+
+        # do not apply loss to the query tokens
+        empty_targets = (
+            torch.ones(atts_llm.size(), dtype=torch.long).to(image.device).fill_(-100)
+        )
+        targets = torch.cat([empty_targets, targets], dim=1)
+
+        inputs_embeds = self.llm_model.get_input_embeddings()(llm_tokens['input_ids'])
+        inputs_embeds = torch.cat([inputs_llm, inputs_embeds], dim=1)
+        attention_mask = torch.cat([atts_llm, llm_tokens['attention_mask']], dim=1)
+
+        outputs = self.llm_model(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            return_dict=True,
+            labels=targets,
+        )
+
         loss = outputs.loss
 
         return loss

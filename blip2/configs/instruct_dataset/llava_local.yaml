@@ -1,0 +1,5 @@
+instruct_data:
+  llava:
+    data_path: /root/instruct_data/llava/
+    image_dir: /root/pretrain_datasets/coco2015/train2014/
+    line_sep: linebreak
